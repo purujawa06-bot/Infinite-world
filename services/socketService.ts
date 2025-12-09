@@ -6,7 +6,7 @@ export const foodMap: Map<string, Food> = new Map();
 
 // Updated to localhost for development based on example.server.js
 // If deploying, change this to your production URL.
-const SERVER_URL = 'http://localhost:3000'; 
+const SERVER_URL = 'https://puruh2o-gabutcok.hf.space'; 
 
 let socket: Socket;
 let myId: string | null = null;
