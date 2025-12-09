@@ -4,8 +4,8 @@ import { Player, Food } from '../types';
 export const playersMap: Map<string, Player> = new Map();
 export const foodMap: Map<string, Food> = new Map();
 
-// Change this to your server URL
-const SERVER_URL = 'http://localhost:3000'; 
+// Updated to your hosted backend URL
+const SERVER_URL = 'https://puruh2o-gabutcok.hf.space'; 
 
 let socket: Socket;
 
