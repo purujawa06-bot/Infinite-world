@@ -7,7 +7,7 @@ import {
   playersMap, 
   foodMap, 
   removeEntity 
-} from '../services/firebaseService';
+} from '../services/socketService';
 import { getRandomColor, getRandomPosition, checkCollision, checkConsumption, getWrappedDelta } from '../utils/gameUtils';
 
 interface GameCanvasProps {
