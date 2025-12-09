@@ -5,28 +5,28 @@ const cors = require('cors');
 
 // Configuration
 const PORT = process.env.PORT || 3000;
-const CLIENT_ORIGIN = "http://localhost:5173"; // REPLACE THIS WITH YOUR DOMAIN
-
+// Allow all origins for easier local development and avoiding disconnects
 const app = express();
 const server = http.createServer(app);
 
-// Strict CORS setup
 app.use(cors({
-  origin: CLIENT_ORIGIN
+  origin: "*"
 }));
 
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_ORIGIN,
+    origin: "*", 
     methods: ["GET", "POST"]
-  }
+  },
+  pingInterval: 2000, 
+  pingTimeout: 5000 
 });
 
 // Game State
 const players = {};
 const food = {};
 const WORLD_SIZE = 3000;
-const FOOD_COUNT = 150;
+const FOOD_COUNT = 200; // Increased food count slightly
 
 // Helper Functions
 const getRandomColor = () => {
@@ -52,9 +52,10 @@ for (let i = 0; i < FOOD_COUNT; i++) {
 }
 
 io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
+  console.log('New connection:', socket.id);
 
-  // Send initial world state
+  // Note: We send init_state on connection, but also on 'join' to ensure
+  // the client definitely has the latest state when they start playing.
   socket.emit('init_state', {
     players: Object.values(players),
     food: Object.values(food)
@@ -64,6 +65,7 @@ io.on('connection', (socket) => {
     // Basic validation
     if (!player || !player.id) return;
     
+    // Create/Update player
     players[player.id] = { 
       ...player, 
       socketId: socket.id,
@@ -71,6 +73,19 @@ io.on('connection', (socket) => {
     };
     
     console.log(`Player joined: ${player.name} (${player.id})`);
+
+    // CRITICAL FIX: Send current world state to the joining player immediately.
+    // This fixes "invisible food" bugs if the initial connection packet was missed
+    // or if the client state was cleared.
+    socket.emit('init_state', {
+        players: Object.values(players),
+        food: Object.values(food)
+    });
+
+    // Broadcast new player to others
+    socket.broadcast.emit('game_update', {
+        players: Object.values(players)
+    });
   });
 
   socket.on('update_player', (data) => {
@@ -106,37 +121,33 @@ io.on('connection', (socket) => {
   });
 
   socket.on('eat_player', (targetId) => {
-    // In a production app, you MUST validate physics server-side here.
-    // Ensure the eater is actually larger and overlapping the target.
-    // For this example, we trust the client's claim for responsiveness.
-    
     if (players[targetId]) {
-      console.log(`Player eaten: ${targetId}`);
+      console.log(`Player eaten: ${targetId} by ${socket.id}`);
       delete players[targetId];
       io.emit('player_eaten', targetId);
     }
   });
 
   socket.on('disconnect', () => {
-    // Find player associated with this socket
     const playerId = Object.keys(players).find(key => players[key].socketId === socket.id);
     if (playerId) {
-      delete players[playerId];
-      io.emit('player_eaten', playerId); // Treat disconnect same as being removed
       console.log('Player disconnected:', playerId);
+      delete players[playerId];
+      io.emit('player_eaten', playerId);
     }
   });
 });
 
 // Broadcast Loop (30 Hz)
 setInterval(() => {
-  // Send player positions frequently
-  io.emit('game_update', {
-    players: Object.values(players)
-  });
+  // Only send updates if there are players
+  if (Object.keys(players).length > 0) {
+    io.emit('game_update', {
+      players: Object.values(players)
+    });
+  }
 }, 1000 / 30);
 
 server.listen(PORT, () => {
   console.log(`Blob.io Server running on port ${PORT}`);
-  console.log(`Allowed Origin: ${CLIENT_ORIGIN}`);
 });

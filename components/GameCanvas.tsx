@@ -58,7 +58,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => {
       leaveGame();
     };
-  }, [onGameOver]); // Added dependency
+  }, [onGameOver]);
 
   // Input Handling (Mouse & Touch)
   useEffect(() => {
@@ -150,13 +150,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const renderPlayers: Player[] = [];
       const activeIds = new Set<string>();
 
-      playersMap.forEach(p => {
-        activeIds.add(p.id);
+      // ALWAYS add self to render list first, ensuring we never disappear
+      renderPlayers.push(myPlayer);
+      activeIds.add(myPlayer.id);
 
-        if (p.id === myPlayer.id) {
-          renderPlayers.push(myPlayer);
-          return;
-        }
+      playersMap.forEach(p => {
+        // Skip self if present in map (we used local ref)
+        if (p.id === myPlayer.id) return;
+        
+        activeIds.add(p.id);
 
         let cached = renderCacheRef.current.get(p.id);
         
@@ -167,7 +169,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           const lerpFactor = 0.1 * deltaTime; 
           
           // Distance check for Interpolation (Handle Teleports/Wraps)
-          // If distance is huge (crossed world edge), snap instantly to prevent Lerp streaking
           const dx = p.x - cached.x;
           const dy = p.y - cached.y;
           const dist = Math.hypot(dx, dy);
@@ -222,11 +223,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
            myPlayer.radius = Math.sqrt(newArea / Math.PI);
            removeEntity('player', other.id);
         } 
-        // Note: The 'victim' logic here is just a local check. 
-        // The authoritative death comes from socketService 'player_eaten' event.
-        // However, we can also trigger it locally for instant feedback if we trust our math,
-        // but to fix the bug where "client 2 believes it hasn't been eaten", we rely on the server event
-        // which is now handled in the useEffect via setOnDeath.
       });
 
       // --- 4. Render (Relative to Player for Infinite Scroll) ---
@@ -253,15 +249,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.beginPath();
       
       const gridSize = 100;
-      // Calculate grid offset based on player position to create movement illusion
       const offsetX = myPlayer.x % gridSize;
       const offsetY = myPlayer.y % gridSize;
       
-      // Determine how many grid lines fit on screen at current scale
-      const viewW = width / viewportRef.current.scale;
-      const viewH = height / viewportRef.current.scale;
+      const viewW = width / (viewportRef.current.scale || 1); // Safety fallback
+      const viewH = height / (viewportRef.current.scale || 1);
       
-      // Draw grid lines relative to center
       const startX = -viewW / 2;
       const endX = viewW / 2;
       const startY = -viewH / 2;
@@ -269,7 +262,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // Vertical lines
       for (let x = startX - (startX % gridSize) - gridSize; x <= endX + gridSize; x += gridSize) {
-        // Adjust x by the player's offset
         const drawX = x - offsetX; 
         ctx.moveTo(drawX, startY);
         ctx.lineTo(drawX, endY);
@@ -288,7 +280,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         let dx = objX - myPlayer.x;
         let dy = objY - myPlayer.y;
 
-        // Wrap Logic: If object is logically closer via the edge, draw it closer
+        // Wrap Logic
         if (dx > WORLD_SIZE / 2) dx -= WORLD_SIZE;
         else if (dx < -WORLD_SIZE / 2) dx += WORLD_SIZE;
 
@@ -296,7 +288,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         else if (dy < -WORLD_SIZE / 2) dy += WORLD_SIZE;
 
         // Optimization: Only draw if within viewport
-        if (Math.abs(dx) < viewW/2 + 100 && Math.abs(dy) < viewH/2 + 100) {
+        // Fix: Increased margin to prevent aggressive culling causing "invisible" objects at edges
+        if (Math.abs(dx) < viewW/2 + 500 && Math.abs(dy) < viewH/2 + 500) {
           drawFn(dx, dy);
         }
       };
@@ -324,7 +317,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           ctx.strokeStyle = 'rgba(0,0,0,0.2)';
           ctx.stroke();
 
-          // Name
           if (p.radius > 10) {
             ctx.fillStyle = '#FFF';
             ctx.font = `bold ${Math.max(12, p.radius / 2.2)}px sans-serif`;

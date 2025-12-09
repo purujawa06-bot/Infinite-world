@@ -1,5 +1,5 @@
 {
   "name": "Blob.io Multiplayer",
-  "description": "A real-time multiplayer agar.io clone using Firebase for state synchronization. Eat food and smaller players to grow, avoid larger players to survive.",
+  "description": "A real-time multiplayer agar.io clone using Socket.io for state synchronization. Eat food and smaller players to grow, avoid larger players to survive.",
   "requestFramePermissions": []
 }
