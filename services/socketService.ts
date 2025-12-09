@@ -8,6 +8,12 @@ export const foodMap: Map<string, Food> = new Map();
 const SERVER_URL = 'https://puruh2o-gabutcok.hf.space'; 
 
 let socket: Socket;
+let myId: string | null = null;
+let onDeathCallback: (() => void) | null = null;
+
+export const setOnDeath = (callback: () => void) => {
+  onDeathCallback = callback;
+};
 
 const getSocket = () => {
   if (!socket) {
@@ -58,10 +64,17 @@ const setupListeners = () => {
 
   socket.on('player_eaten', (id: string) => {
     playersMap.delete(id);
+    // FIX: Check if I am the one who was eaten
+    if (myId && id === myId) {
+      if (onDeathCallback) {
+        onDeathCallback();
+      }
+    }
   });
 };
 
 export const joinGame = async (player: Player): Promise<string> => {
+  myId = player.id; // Store local ID
   const s = getSocket();
   s.connect();
   
@@ -79,6 +92,8 @@ export const leaveGame = async () => {
   }
   playersMap.clear();
   foodMap.clear();
+  myId = null;
+  onDeathCallback = null;
 };
 
 export const updateSelf = (id: string, x: number, y: number, radius: number) => {

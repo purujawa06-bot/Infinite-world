@@ -1,5 +1,6 @@
 import React from 'react';
 import { Player } from '../types';
+import { Minimap } from './Minimap';
 
 interface HUDProps {
   myPlayer: Player | null;
@@ -9,7 +10,7 @@ interface HUDProps {
 
 export const HUD: React.FC<HUDProps> = ({ myPlayer, leaderboard }) => {
   return (
-    <div className="absolute inset-0 pointer-events-none p-2">
+    <div className="absolute inset-0 pointer-events-none p-2 z-40">
       {/* Minimal Leaderboard - Top Right */}
       <div className="absolute top-2 right-2 bg-black/30 backdrop-blur-sm p-2 rounded-lg border border-white/10 text-white w-40">
         <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Leaderboard</div>
@@ -30,6 +31,9 @@ export const HUD: React.FC<HUDProps> = ({ myPlayer, leaderboard }) => {
            <span className="text-xs text-gray-300 ml-1 font-bold">MASS</span>
         </div>
       )}
+
+      {/* Globe Minimap - Bottom Right */}
+      {myPlayer && <Minimap player={myPlayer} />}
     </div>
   );
 };

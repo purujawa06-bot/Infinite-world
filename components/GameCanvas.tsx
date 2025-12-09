@@ -6,7 +6,8 @@ import {
   updateSelf, 
   playersMap, 
   foodMap, 
-  removeEntity 
+  removeEntity,
+  setOnDeath 
 } from '../services/socketService';
 import { getRandomColor, getRandomPosition, checkCollision, checkConsumption, getWrappedDelta } from '../utils/gameUtils';
 
@@ -48,11 +49,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   // Initialization
   useEffect(() => {
     joinGame(myPlayerRef.current);
+    
+    // Fix: Listen for server confirming we are dead
+    setOnDeath(() => {
+      onGameOver(myPlayerRef.current.radius);
+    });
 
     return () => {
       leaveGame();
     };
-  }, []);
+  }, [onGameOver]); // Added dependency
 
   // Input Handling (Mouse & Touch)
   useEffect(() => {
@@ -211,16 +217,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         const dist = Math.hypot(dx, dy);
         
         if (checkConsumption(myPlayer.radius, other.radius, dist)) {
+           // We are the predator
            const newArea = Math.PI * myPlayer.radius ** 2 + Math.PI * other.radius ** 2;
            myPlayer.radius = Math.sqrt(newArea / Math.PI);
            removeEntity('player', other.id);
         } 
-        else if (checkConsumption(other.radius, myPlayer.radius, dist)) {
-          onGameOver(myPlayer.radius);
-          leaveGame(); 
-          cancelAnimationFrame(requestRef.current!);
-          return;
-        }
+        // Note: The 'victim' logic here is just a local check. 
+        // The authoritative death comes from socketService 'player_eaten' event.
+        // However, we can also trigger it locally for instant feedback if we trust our math,
+        // but to fix the bug where "client 2 believes it hasn't been eaten", we rely on the server event
+        // which is now handled in the useEffect via setOnDeath.
       });
 
       // --- 4. Render (Relative to Player for Infinite Scroll) ---
@@ -231,9 +237,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const camLerp = 0.1 * deltaTime;
       viewportRef.current.scale = viewportRef.current.scale + (clampedScale - viewportRef.current.scale) * camLerp;
       
-      // Note: We no longer lerp Viewport X/Y because the camera is "Fixed" on the player for infinite scrolling.
-      // We render everything *relative* to the player.
-
       // Draw Background
       ctx.fillStyle = '#111827';
       ctx.fillRect(0, 0, width, height);
@@ -279,8 +282,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.lineTo(endX, drawY);
       }
       ctx.stroke();
-
-      // No Border Drawing (It's infinite)
 
       // --- Helper to draw relative to player with wrapping ---
       const drawRelative = (objX: number, objY: number, drawFn: (x: number, y: number) => void) => {
